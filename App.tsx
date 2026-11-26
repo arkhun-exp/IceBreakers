@@ -121,12 +121,12 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     toDoSpeakers: "Speakers à faire",
     completedIcebreakers: "IceBreakers réalisés",
     eligible: "Speakers éligibles",
-    selectionReady: "Prêt pour le prochain",
+    selectionReady: "A planifier",
     wheelDescription: "Sélection aléatoire d'un speaker à faire",
     wheelEmpty: "Aucun speaker éligible",
     spinAction: "Lancer la sélection",
     spinning: "Sélection en cours",
-    drawSchedule: "Planifié le lundi prochain à 09:00",
+    drawSchedule: "Lundi 09:00",
     drawSuccess: "Demande transmise au flux.",
     drawPendingStatus: "En cours — attribution en attente.",
     latestSentSpeaker: "Dernier speaker envoyé : {speaker} · Envoyé",
@@ -144,7 +144,7 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     dateColumn: "Date",
     activityColumn: "Activité",
     noRecent: "Aucun IceBreaker réalisé pour le moment.",
-    closeTitle: "À clôturer",
+    closeTitle: "A clôturer",
     closeDescription: "Renseignez l’activité et le commentaire, puis marquez l’IceBreaker comme fait.",
     activityLabel: "Activité",
     activityPlaceholder: "Ex. : présentation de l’équipe",
@@ -164,7 +164,7 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     loading: "Chargement des données…",
     refresh: "Actualiser",
     refreshLabel: "Actualiser les données",
-    autoRefreshCountdown: "Actualisation automatique dans {seconds} s",
+    autoRefreshCountdown: "Recharge dans {seconds} s",
     settingsLoadFailed: "Les préférences de format n’ont pas pu être chargées. Le format du navigateur sera utilisé.",
     appBrand: "EXPERTIME",
     appName: "IceBreaker",
@@ -1137,6 +1137,21 @@ function PageBody(props: GeneratedComponentProps) {
               <Text className={styles.brandName}>{translate("appName")}</Text>
             </div>
           </div>
+          <header className={styles.header}>
+            <div className={styles.refreshControls}>
+              <Button
+                appearance="subtle"
+                className={styles.refreshButton}
+                icon={<ArrowSyncRegular />}
+                disabled={action.busy || data.loading}
+                onClick={retryLoad}
+              >
+              </Button>
+              <Text className={styles.refreshCountdown}>
+                {translate("autoRefreshCountdown").replace("{seconds}", formatNumber(refreshCountdown, settings, locale))}
+              </Text>
+            </div>
+          </header>
           <nav className={styles.nav} aria-label={translate("navLabel")}>
             <Button appearance="transparent" className={styles.navLink} aria-current="page" icon={<HomeRegular />}>
               {translate("navHome")}
@@ -1147,28 +1162,11 @@ function PageBody(props: GeneratedComponentProps) {
             <Button appearance="transparent" className={styles.navLink} icon={<HistoryRegular />} onClick={() => void openEntityList("exp_icebreakerhistory")}>
               {translate("navHistory")}
             </Button>
+            
           </nav>
-          <Text className={styles.sidebarFoot}>{translate("sidebarCaption")}</Text>
         </aside>
 
         <main className={styles.main}>
-          <header className={styles.header}>
-            <div className={styles.refreshControls}>
-              <Button
-                appearance="subtle"
-                className={styles.refreshButton}
-                icon={<ArrowSyncRegular />}
-                aria-label={translate("refreshLabel")}
-                disabled={action.busy || data.loading}
-                onClick={retryLoad}
-              >
-                {translate("refresh")}
-              </Button>
-              <Text className={styles.refreshCountdown}>
-                {translate("autoRefreshCountdown").replace("{seconds}", formatNumber(refreshCountdown, settings, locale))}
-              </Text>
-            </div>
-          </header>
 
           <div className={styles.errorStack}>
             {data.errors.map((error) => <PageErrorBar key={error.operation} error={{ ...error, retry: retryLoad }} />)}
@@ -1188,7 +1186,7 @@ function PageBody(props: GeneratedComponentProps) {
                 <div className={styles.inlineLoading}><Spinner size="tiny" label={translate("loading")} /></div>
               )}
 
-              <section className={styles.contentGrid} aria-label={translate("selectionReady")}>
+              {plannedRows.length == 0 && (
                 <Card className={styles.panel}>
                   <div className={styles.selectionLayout}>
                     <div className={styles.wheelColumn}>
@@ -1226,9 +1224,10 @@ function PageBody(props: GeneratedComponentProps) {
                       )}
                     </div>
                     <div className={styles.actionColumn}>
-                      <Text className={styles.actionEyebrow}>{translate("eligible")}</Text>
                       <Text className={styles.actionTitle}>{translate("selectionReady")}</Text>
-                      <Text className={styles.muted}>{translate("drawSchedule")}</Text>
+                      <Text className={styles.muted} aria-label={translate("drawSchedule")}>
+                        <CalendarLtrRegular /> {translate("drawSchedule")} · {formatDate(scheduledFor, settings, locale)}
+                      </Text>
                       <Button
                         appearance="primary"
                         className={styles.primaryAction}
@@ -1259,7 +1258,9 @@ function PageBody(props: GeneratedComponentProps) {
                     </div>
                   </div>
                 </Card>
+              )}
 
+              {plannedRows.length > 0 && (
                 <Card className={styles.panel}>
                   <div className={styles.panelHeader}>
                     <Text as="h2" className={styles.sectionTitle}>{translate("closeTitle")}</Text>
@@ -1309,41 +1310,7 @@ function PageBody(props: GeneratedComponentProps) {
                     <Text className={styles.emptyState}>{translate("noPlanned")}</Text>
                   )}
                 </Card>
-              </section>
-
-              <section className={styles.tablePanel} aria-labelledby="recent-heading">
-                <div className={styles.panelHeader}>
-                  <Text as="h2" id="recent-heading" className={styles.sectionTitle}>{translate("recentTitle")}</Text>
-                </div>
-                {completedRows.length > 0 ? (
-                  <div className={styles.tableWrap}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr>
-                          <th className={styles.tableHeadCell}>{translate("speakerColumn")}</th>
-                          <th className={styles.tableHeadCell}>{translate("dateColumn")}</th>
-                          <th className={styles.tableHeadCell}>{translate("activityColumn")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {completedRows.map((row) => {
-                          const lookup = normalizeLookupReference(row, "_exp_speaker_value", ["exp_speakers"]);
-                          const speakerLabel = lookup.state === "resolved" ? getHistorySpeakerLabel(row) : translate("speakerUnavailable");
-                          return (
-                            <tr key={row.exp_icebreakerhistoryid}>
-                              <td className={`${styles.tableCell} ${styles.tableStrong}`}>{speakerLabel}</td>
-                              <td className={styles.tableCell}>{formatDate(row.exp_date, settings, locale)}</td>
-                              <td className={styles.tableCell}>{row.exp_activite?.trim() || "—"}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <Text className={styles.emptyState}>{translate("noRecent")}</Text>
-                )}
-              </section>
+              )}
 
               {plannedRows.length > 1 && (
                 <section className={`${styles.panel} ${styles.alertPanel}`} aria-labelledby="planned-alert-heading">
@@ -1372,10 +1339,6 @@ function PageBody(props: GeneratedComponentProps) {
                   </Button>
                 </section>
               )}
-
-              <Text className={styles.muted} aria-label={translate("drawSchedule")}>
-                <CalendarLtrRegular /> {translate("drawSchedule")} · {formatDate(scheduledFor, settings, locale)}
-              </Text>
             </>
           )}
         </main>
